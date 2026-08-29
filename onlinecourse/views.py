@@ -119,10 +119,10 @@ def submit(request, course_id):
     submission = Submission.objects.create(enrollment=enrollment)
 
     # Collect the selected choices from exam form
-    selected_choices = extract_answers(request)
+    choices = extract_answers(request)
 
     # Add each selected choice object to the submission object
-    submission.choices.set(selected_choices)
+    submission.choices.set(choices)
     submission.save()
 
     # Redirect to show_exam_result with the submission id
@@ -149,19 +149,28 @@ def extract_answers(request):
 def show_exam_result(request, course_id, submission_id):
     course = get_object_or_404(Course, pk=course_id)
     submission = get_object_or_404(Submission, pk=submission_id)
+    choices = submission.choices.all()
 
     # Get the selected choice ids from the submission record
     selected_choice_ids = submission.choices.values_list('id', flat=True)
 
     # Calculate the total score
     total_score = 0
-    for question in course.question_set.all():
-        if question.is_get_score(selected_choice_ids):
-            total_score += question.grade
+    questions = course.question_set.all()  # Assuming course has related questions
+
+    for question in questions:
+        correct_choices = question.choice_set.filter(is_correct=True)  # Get all correct choices for the question
+        selected_choices = choices.filter(question=question)  # Get the user's selected choices for the question
+
+        # Check if the selected choices are the same as the correct choices
+        if set(correct_choices) == set(selected_choices):
+            total_score += question.grade  # Add the question's grade only if all correct answers are selected
 
     context = {
         'course': course,
         'submission': submission,
+        'grade': total_score,
+        'choices': choices,
         'selected_choice_ids': selected_choice_ids,
         'total_score': total_score,
     }
